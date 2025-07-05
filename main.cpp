@@ -1,6 +1,7 @@
 #include <iostream>
 #include <map>
 #include <iomanip>
+#include <chrono>
 #include "SpeedTest.h"
 #include "TestConfigTemplate.h"
 #include "CmdOptions.h"
@@ -42,7 +43,6 @@ int main(const int argc, const char **argv) {
     }
 
     if (programOptions.output_type == OutputType::verbose){
-        banner();
         std::cout << std::endl;
     }
 
@@ -85,7 +85,7 @@ int main(const int argc, const char **argv) {
     IPInfo info;
     ServerInfo serverInfo;
     ServerInfo serverQualityInfo;
-    
+
     if (programOptions.insecure) {
         sp.setInsecure(programOptions.insecure);
     }
@@ -223,7 +223,7 @@ int main(const int argc, const char **argv) {
     if (programOptions.output_type == OutputType::verbose)
         std::cout << "Determine line type (" << preflightConfigDownload.concurrency << ") "  << std::flush;
     double preSpeed = 0;
-    if (!sp.downloadSpeed(serverInfo, preflightConfigDownload, preSpeed, [&programOptions](bool success){
+    if (!sp.downloadSpeed(serverInfo, preflightConfigDownload, preSpeed, [&programOptions](bool success, double currentSpeed, double progress){
         if (programOptions.output_type == OutputType::verbose)
             std::cout << (success ? '.' : '*') << std::flush;
     })){
@@ -244,23 +244,35 @@ int main(const int argc, const char **argv) {
         std::cout << downloadConfig.label << std::endl;
 
 
-    if (!programOptions.upload){
-        if (programOptions.output_type == OutputType::verbose){
-            std::cout << std::endl;
-            std::cout << "Testing download speed (" << downloadConfig.concurrency << ") "  << std::flush;
-        }
+    if (programOptions.output_type == OutputType::verbose){
+        std::cout << std::endl;
+        std::cout << "Testing:" << std::endl;
+        std::cout << std::endl;
+    }
 
+    if (!programOptions.upload){
         double downloadSpeed = 0;
-        if (sp.downloadSpeed(serverInfo, downloadConfig, downloadSpeed, [&programOptions](bool success){
-            if (programOptions.output_type == OutputType::verbose)
-                std::cout << (success ? '.' : '*') << std::flush;
-        })){
-            if (programOptions.output_type == OutputType::verbose){
-                std::cout << std::endl;
-                std::cout << "Download: ";
+        if (sp.downloadSpeed(serverInfo, downloadConfig, downloadSpeed, [&programOptions](bool success, double currentSpeed, double progress){
+            if (programOptions.output_type == OutputType::verbose) {
+                // Create progress bar based on actual progress (0.0 to 1.0)
+                int filledSteps = std::min(30, (int)(progress * 30));
+
+                std::cout << "\rDownload [";
+                for (int i = 0; i < 30; i++) {
+                    if (i < filledSteps) {
+                        std::cout << "=";
+                    } else {
+                        std::cout << "-";
+                    }
+                }
+                std::cout << "] ";
                 std::cout << std::fixed;
                 std::cout << std::setprecision(2);
-                std::cout << downloadSpeed << " Mbit/s" << std::endl;
+                std::cout << currentSpeed << " Mbit/s" << std::flush;
+            }
+    })){
+        if (programOptions.output_type == OutputType::verbose){
+            std::cout << std::endl;  // Just move to next line, progress bar already complete
             } else if (programOptions.output_type == OutputType::text) {
                 std::cout << "DOWNLOAD_SPEED=";
                 std::cout << std::fixed;
@@ -286,19 +298,30 @@ int main(const int argc, const char **argv) {
     }
 
     if (programOptions.output_type == OutputType::verbose)
-        std::cout << "Testing upload speed (" << uploadConfig.concurrency << ") "  << std::flush;
+        std::cout << "" << std::flush;
 
     double uploadSpeed = 0;
-    if (sp.uploadSpeed(serverInfo, uploadConfig, uploadSpeed, [&programOptions](bool success){
-        if (programOptions.output_type == OutputType::verbose)
-            std::cout << (success ? '.' : '*') << std::flush;
-    })){
-        if (programOptions.output_type == OutputType::verbose){
-            std::cout << std::endl;
-            std::cout << "Upload: ";
+    if (sp.uploadSpeed(serverInfo, uploadConfig, uploadSpeed, [&programOptions](bool success, double currentSpeed, double progress){
+        if (programOptions.output_type == OutputType::verbose) {
+            // Create progress bar based on actual progress (0.0 to 1.0)
+            int filledSteps = std::min(30, (int)(progress * 30));
+
+            std::cout << "\rUpload   [";
+            for (int i = 0; i < 30; i++) {
+                if (i < filledSteps) {
+                    std::cout << "=";
+                } else {
+                    std::cout << "-";
+                }
+            }
+            std::cout << "] ";
             std::cout << std::fixed;
             std::cout << std::setprecision(2);
-            std::cout << uploadSpeed << " Mbit/s" << std::endl;
+            std::cout << currentSpeed << " Mbit/s" << std::flush;
+        }
+    })){
+        if (programOptions.output_type == OutputType::verbose){
+            std::cout << std::endl;  // Just move to next line, progress bar already complete
         } else if (programOptions.output_type == OutputType::text) {
             std::cout << "UPLOAD_SPEED=";
             std::cout << std::fixed;

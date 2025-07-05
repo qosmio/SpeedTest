@@ -87,14 +87,14 @@ bool SpeedTest::setServer(ServerInfo& server){
 
 }
 
-bool SpeedTest::downloadSpeed(const ServerInfo &server, const TestConfig &config, double& result, std::function<void(bool)> cb) {
+bool SpeedTest::downloadSpeed(const ServerInfo &server, const TestConfig &config, double& result, std::function<void(bool, double, double)> cb) {
     opFn pfunc = &SpeedTestClient::download;
     mDownloadSpeed = execute(server, config, pfunc, cb);
     result = mDownloadSpeed;
     return true;
 }
 
-bool SpeedTest::uploadSpeed(const ServerInfo &server, const TestConfig &config, double& result, std::function<void(bool)> cb) {
+bool SpeedTest::uploadSpeed(const ServerInfo &server, const TestConfig &config, double& result, std::function<void(bool, double, double)> cb) {
     opFn pfunc = &SpeedTestClient::upload;
     mUploadSpeed = execute(server, config, pfunc, cb);
     result = mUploadSpeed;
@@ -171,12 +171,17 @@ bool SpeedTest::share(const ServerInfo& server, std::string& image_url) {
 
 // private
 
-double SpeedTest::execute(const ServerInfo &server, const TestConfig &config, const opFn &pfunc, std::function<void(bool)> cb) {
+double SpeedTest::execute(const ServerInfo &server, const TestConfig &config, const opFn &pfunc, std::function<void(bool, double, double)> cb) {
     std::vector<std::thread> workers;
     double overall_speed = 0;
     std::mutex mtx;
+    std::mutex callback_mtx; // Add mutex for callback synchronization
+    std::atomic<long> total_bytes{0};
+    std::atomic<long> total_operations{0};
+    auto test_start = std::chrono::steady_clock::now();
+
     for (int i = 0; i < config.concurrency; i++) {
-        workers.push_back(std::thread([&server, &overall_speed, &pfunc, &config, &mtx, cb](){
+        workers.push_back(std::thread([&server, &overall_speed, &pfunc, &config, &mtx, &callback_mtx, &total_bytes, &total_operations, &test_start, cb](){
             long start_size = config.start_size;
             long max_size   = config.max_size;
             long incr_size  = config.incr_size;
@@ -187,16 +192,38 @@ double SpeedTest::execute(const ServerInfo &server, const TestConfig &config, co
             if (spClient.connect()) {
                 auto start = std::chrono::steady_clock::now();
                 std::vector<double> partial_results;
+
                 while (curr_size < max_size){
                     long op_time = 0;
                     if ((spClient.*pfunc)(curr_size, config.buff_size, op_time)) {
                         double metric = (curr_size * 8) / (static_cast<double>(op_time) / 1000);
                         partial_results.push_back(metric);
-                        if (cb)
-                            cb(true);
+
+                        // Update total bytes transferred and operation count
+                        total_bytes += curr_size;
+                        total_operations++;
+
+                        // Calculate current speed based on total progress
+                        auto now = std::chrono::steady_clock::now();
+                        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - test_start).count();
+                        if (elapsed_ms > 0) {
+                            double current_speed_mbits = (total_bytes.load() * 8.0) / (elapsed_ms * 1000.0);
+                            if (cb) {
+                                // Calculate progress based on time elapsed vs target test time
+                                double time_progress = (double)elapsed_ms / (double)config.min_test_time_ms;
+                                // Clamp progress to 1.0 to avoid going over 100%
+                                double progress = std::min(1.0, time_progress);
+
+                                // Synchronize callback execution to prevent scrambled output
+                                std::lock_guard<std::mutex> lock(callback_mtx);
+                                cb(true, current_speed_mbits, progress);
+                            }
+                        }
                     } else {
-                        if (cb)
-                            cb(false);
+                        if (cb) {
+                            std::lock_guard<std::mutex> lock(callback_mtx);
+                            cb(false, 0.0, 0.0);
+                        }
                     }
                     curr_size += incr_size;
                     auto stop = std::chrono::steady_clock::now();
@@ -224,8 +251,10 @@ double SpeedTest::execute(const ServerInfo &server, const TestConfig &config, co
                 overall_speed += (real_sum / iter);
                 mtx.unlock();
             } else {
-                if (cb)
-                    cb(false);
+                if (cb) {
+                    std::lock_guard<std::mutex> lock(callback_mtx);
+                    cb(false, 0.0, 0.0);
+                }
             }
         }));
 

@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include "DataTypes.h"
 
 class SpeedTestClient;
@@ -40,8 +41,8 @@ public:
     bool setServer(ServerInfo& server);
     void setInsecure(bool insecure = false);
     const long &latency();
-    bool downloadSpeed(const ServerInfo& server, const TestConfig& config, double& result, std::function<void(bool)> cb = nullptr);
-    bool uploadSpeed(const ServerInfo& server, const TestConfig& config, double& result, std::function<void(bool)> cb = nullptr);
+    bool downloadSpeed(const ServerInfo& server, const TestConfig& config, double& result, std::function<void(bool, double, double)> cb = nullptr);
+    bool uploadSpeed(const ServerInfo& server, const TestConfig& config, double& result, std::function<void(bool, double, double)> cb = nullptr);
     bool jitter(const ServerInfo& server, long& result, int sample = 40);
     bool share(const ServerInfo& server, std::string& image_url);
 private:
@@ -50,7 +51,7 @@ private:
     const ServerInfo findBestServerWithin(const std::vector<ServerInfo>& serverList, long& latency, int sample_size = 5, std::function<void(bool)> cb = nullptr);
     static CURL* curl_setup(CURL* curl = nullptr);
     static size_t writeFunc(void* buf, size_t size, size_t nmemb, void* userp);
-    double execute(const ServerInfo &server, const TestConfig &config, const opFn &fnc, std::function<void(bool)> cb = nullptr);
+    double execute(const ServerInfo &server, const TestConfig &config, const opFn &fnc, std::function<void(bool, double, double)> cb = nullptr);
     template <typename T>
         static T deg2rad(T n);
     template <typename T>

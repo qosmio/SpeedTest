@@ -98,8 +98,8 @@ class JSON
 
         JSON() : Internal(), Type( Class::Null ){}
 
-        JSON( initializer_list<JSON> list ) 
-            : JSON() 
+        JSON( initializer_list<JSON> list )
+            : JSON()
         {
             SetType( Class::Object );
             for( auto i = list.begin(), e = list.end(); i != e; ++i, ++i )
@@ -123,17 +123,17 @@ class JSON
         JSON( const JSON &other ) {
             switch( other.Type ) {
             case Class::Object:
-                Internal.Map = 
+                Internal.Map =
                     new map<string,JSON>( other.Internal.Map->begin(),
                                           other.Internal.Map->end() );
                 break;
             case Class::Array:
-                Internal.List = 
+                Internal.List =
                     new deque<JSON>( other.Internal.List->begin(),
                                       other.Internal.List->end() );
                 break;
             case Class::String:
-                Internal.String = 
+                Internal.String =
                     new string( *other.Internal.String );
                 break;
             default:
@@ -146,17 +146,17 @@ class JSON
             ClearInternal();
             switch( other.Type ) {
             case Class::Object:
-                Internal.Map = 
+                Internal.Map =
                     new map<string,JSON>( other.Internal.Map->begin(),
                                           other.Internal.Map->end() );
                 break;
             case Class::Array:
-                Internal.List = 
+                Internal.List =
                     new deque<JSON>( other.Internal.List->begin(),
                                       other.Internal.List->end() );
                 break;
             case Class::String:
-                Internal.String = 
+                Internal.String =
                     new string( *other.Internal.String );
                 break;
             default:
@@ -328,7 +328,7 @@ class JSON
         }
 
 
-        JSONConstWrapper<deque<JSON>> ArrayRange() const { 
+        JSONConstWrapper<deque<JSON>> ArrayRange() const {
             if( Type == Class::Array )
                 return JSONConstWrapper<deque<JSON>>( Internal.List );
             return JSONConstWrapper<deque<JSON>>( nullptr );
@@ -385,7 +385,7 @@ class JSON
                 return;
 
             ClearInternal();
-          
+
             switch( type ) {
             case Class::Null:      Internal.Map    = nullptr;                break;
             case Class::Object:    Internal.Map    = new map<string,JSON>(); break;
@@ -400,9 +400,9 @@ class JSON
         }
 
     private:
-      /* beware: only call if YOU know that Internal is allocated. No checks performed here. 
-         This function should be called in a constructed JSON just before you are going to 
-        overwrite Internal... 
+      /* beware: only call if YOU know that Internal is allocated. No checks performed here.
+         This function should be called in a constructed JSON just before you are going to
+        overwrite Internal...
       */
       void ClearInternal() {
         switch( Type ) {
@@ -464,7 +464,7 @@ namespace {
             consume_ws( str, ++offset );
             JSON Value = parse_next( str, offset );
             Object[Key.ToString()] = Value;
-            
+
             consume_ws( str, offset );
             if( str[offset] == ',' ) {
                 ++offset; continue;
@@ -484,7 +484,7 @@ namespace {
     JSON parse_array( const string &str, size_t &offset ) {
         JSON Array = JSON::Make( JSON::Class::Array );
         unsigned index = 0;
-        
+
         ++offset;
         consume_ws( str, offset );
         if( str[offset] == ']' ) {
@@ -559,7 +559,7 @@ namespace {
             if( (c == '-') || (c >= '0' && c <= '9') )
                 val += c;
             else if( c == '.' ) {
-                val += c; 
+                val += c;
                 isDouble = true;
             }
             else
@@ -586,7 +586,7 @@ namespace {
             return std::move( JSON::Make( JSON::Class::Null ) );
         }
         --offset;
-        
+
         if( isDouble )
             Number = std::stod( val ) * std::pow( 10, exp );
         else {
